@@ -7,6 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
+import { TimelineEditor } from "@/components/features/proposals/timeline-editor";
+import { PricingEditor } from "@/components/features/proposals/pricing-editor";
+import { SignatureBlock } from "@/components/features/proposals/signature-block";
 import {
   ArrowLeft,
   Save,
@@ -279,37 +282,11 @@ export default function ProposalEditorPage() {
               )}
 
               {currentSection.type === "TIMELINE" && (
-                <div className="rounded-lg border border-[var(--border)] p-6">
-                  <p className="text-sm text-[var(--muted-foreground)]">
-                    Timeline builder will be implemented in Week 2.
-                    For now, use the text area below to describe your timeline.
-                  </p>
-                  <textarea
-                    value={sectionContents[currentSection.id] || ""}
-                    onChange={(e) =>
-                      updateContent(currentSection.id, e.target.value)
-                    }
-                    className="mt-4 min-h-[300px] w-full resize-none rounded-lg border border-[var(--border)] bg-transparent p-4 text-sm outline-none"
-                    placeholder="Describe weeks, tasks, and deliverables..."
-                  />
-                </div>
+                <TimelineEditor proposalId={proposalId} />
               )}
 
               {currentSection.type === "PRICING" && (
-                <div className="rounded-lg border border-[var(--border)] p-6">
-                  <p className="text-sm text-[var(--muted-foreground)]">
-                    Pricing table will be implemented in Week 2.
-                    For now, describe your pricing below.
-                  </p>
-                  <textarea
-                    value={sectionContents[currentSection.id] || ""}
-                    onChange={(e) =>
-                      updateContent(currentSection.id, e.target.value)
-                    }
-                    className="mt-4 min-h-[200px] w-full resize-none rounded-lg border border-[var(--border)] bg-transparent p-4 text-sm outline-none"
-                    placeholder="List pricing items, quantities, and amounts..."
-                  />
-                </div>
+                <PricingEditor proposalId={proposalId} />
               )}
 
               {currentSection.type === "PENALTY" && (
@@ -332,23 +309,17 @@ export default function ProposalEditorPage() {
               )}
 
               {currentSection.type === "SIGNATURE" && (
-                <div className="rounded-lg border border-[var(--border)] p-6">
-                  <div className="grid gap-6 sm:grid-cols-2">
-                    <div className="rounded-lg border border-dashed border-[var(--border)] p-6 text-center">
-                      <PenTool className="mx-auto mb-2 h-8 w-8 text-[var(--muted-foreground)]" />
-                      <p className="font-medium">Agency Signature</p>
-                      <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-                        Sign when sending to client
-                      </p>
-                    </div>
-                    <div className="rounded-lg border border-dashed border-[var(--border)] p-6 text-center">
-                      <PenTool className="mx-auto mb-2 h-8 w-8 text-[var(--muted-foreground)]" />
-                      <p className="font-medium">Client Signature</p>
-                      <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-                        Client signs upon approval
-                      </p>
-                    </div>
-                  </div>
+                <div className="grid gap-6 sm:grid-cols-2">
+                  <SignatureBlock
+                    label="Agency Signature"
+                    onSign={(name) =>
+                      toast.success(`Signed as ${name}`)
+                    }
+                  />
+                  <SignatureBlock
+                    label="Client Signature"
+                    readOnly
+                  />
                 </div>
               )}
 
