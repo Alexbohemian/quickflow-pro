@@ -56,8 +56,8 @@ async function handlePost(
     },
   });
 
-  // TODO: Send email via SendGrid with link /proposals/{shareToken}
-  const proposalUrl = `${process.env.NEXTAUTH_URL}/proposals/${shareToken}`;
+  // TODO: Send email via SendGrid with link /p/{shareToken}
+  const proposalUrl = `${process.env.NEXTAUTH_URL}/p/${shareToken}`;
 
   if (process.env.NODE_ENV === "development") {
     console.log(`Proposal sent to ${clientEmail}: ${proposalUrl}`);

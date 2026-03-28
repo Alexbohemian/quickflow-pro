@@ -12,7 +12,7 @@ const publicPaths = [
   "/api/health",
 ];
 
-const publicPrefixes = ["/proposals/", "/invoices/", "/payments/"];
+const publicPrefixes = ["/p/", "/invoices/", "/payments/"];
 
 function isPublicPath(pathname: string): boolean {
   if (publicPaths.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
