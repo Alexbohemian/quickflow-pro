@@ -12,11 +12,9 @@ import { apiSuccess, apiError } from "@/lib/api/response";
 export async function POST(request: NextRequest) {
   const authHeader = request.headers.get("x-agent-secret");
 
-  if (
-    process.env.AGENT_SECRET &&
-    authHeader !== process.env.AGENT_SECRET
-  ) {
-    return apiError("UNAUTHORIZED", "Invalid agent secret", 401);
+  // Fail-closed: reject if AGENT_SECRET is not configured or doesn't match
+  if (!process.env.AGENT_SECRET || authHeader !== process.env.AGENT_SECRET) {
+    return apiError("UNAUTHORIZED", "Invalid or missing agent secret", 401);
   }
 
   const result = await runAgentCheck();

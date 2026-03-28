@@ -9,9 +9,7 @@ export function getTenantClient(workspaceId: string) {
     query: {
       $allModels: {
         async findMany({ args, query }) {
-          if ("workspaceId" in (args.where ?? {})) {
-            return query(args);
-          }
+          // Always enforce workspace scope — never trust caller-supplied workspaceId
           args.where = { ...args.where, workspaceId };
           return query(args);
         },
@@ -20,16 +18,18 @@ export function getTenantClient(workspaceId: string) {
           return query(args);
         },
         async create({ args, query }) {
-          if ("workspaceId" in (args.data as Record<string, unknown>)) {
-            (args.data as Record<string, unknown>).workspaceId = workspaceId;
-          }
+          // Always set workspaceId on create — don't trust caller
+          (args.data as Record<string, unknown>).workspaceId = workspaceId;
           return query(args);
         },
         async update({ args, query }) {
-          args.where = { ...args.where };
+          // Enforce workspace scope on updates to prevent cross-tenant writes
+          args.where = { ...args.where, workspaceId };
           return query(args);
         },
         async delete({ args, query }) {
+          // Enforce workspace scope on deletes to prevent cross-tenant deletes
+          args.where = { ...args.where, workspaceId };
           return query(args);
         },
       },

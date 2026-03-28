@@ -1,8 +1,17 @@
-export default function ClientPortalLayout({
+import { auth } from "@/lib/auth";
+import { redirect } from "next/navigation";
+
+export default async function ClientPortalLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    redirect("/login");
+  }
+
   return (
     <div className="min-h-screen bg-[var(--muted)]">
       <header className="border-b border-[var(--border)] bg-[var(--background)] px-6 py-4">

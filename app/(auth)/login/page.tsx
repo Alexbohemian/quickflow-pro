@@ -13,7 +13,12 @@ import Link from "next/link";
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") || "/workspace-select";
+  const rawCallback = searchParams.get("callbackUrl") || "/workspace-select";
+  // Prevent open redirect — only allow relative paths
+  const callbackUrl =
+    rawCallback.startsWith("/") && !rawCallback.startsWith("//")
+      ? rawCallback
+      : "/workspace-select";
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 

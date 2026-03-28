@@ -7,7 +7,7 @@ export async function POST(
   { params }: { params: Promise<{ token: string }> }
 ) {
   const { token } = await params;
-  const { signerName } = await request.json();
+  const { signerName, signerEmail } = await request.json();
 
   if (!signerName) {
     return apiError("INVALID_INPUT", "Signer name is required", 400);
@@ -18,6 +18,10 @@ export async function POST(
   });
 
   if (!proposal) return notFound("Proposal not found");
+
+  if (proposal.expiresAt && proposal.expiresAt < new Date()) {
+    return apiError("EXPIRED", "This proposal has expired", 410);
+  }
 
   if (proposal.status === "APPROVED") {
     return apiError("ALREADY_APPROVED", "This proposal has already been approved", 400);
@@ -34,7 +38,7 @@ export async function POST(
       data: {
         proposalId: proposal.id,
         signerName,
-        signerEmail: "",
+        signerEmail: signerEmail || "",
         signerRole: "client",
         signatureData: signerName, // Type-to-sign
         ipAddress: ip,
