@@ -1,0 +1,1164 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── AUTH & TENANCY ─────────────────────────────────────────────
+
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  PM
+  FINANCE
+  TEAM_MEMBER
+  CLIENT
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts         OAuthAccount[]
+  sessions         Session[]
+  workspaceMembers WorkspaceMember[]
+  taskComments     TaskComment[]
+  taskMentions     TaskMention[]
+  notifications    Notification[]
+  timeRecords      TimeRecord[]
+  agentActions     AgentAction[]
+
+  @@map("users")
+}
+
+model OAuthAccount {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("oauth_accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  workspaceId  String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  logo      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members            WorkspaceMember[]
+  invitations        WorkspaceInvitation[]
+  teams              Team[]
+  clients            Client[]
+  leads              Lead[]
+  proposals          Proposal[]
+  projects           Project[]
+  invoices           Invoice[]
+  files              File[]
+  notifications      Notification[]
+  integrationConfigs IntegrationConfig[]
+  agentConfig        AgentConfig?
+  checklistTemplates ChecklistTemplate[]
+  perks              Perk[]
+  rateCards          RateCard[]
+  proposalTemplates  ProposalTemplate[]
+  auditLogs          AuditLog[]
+
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  id          String        @id @default(cuid())
+  userId      String
+  workspaceId String
+  role        WorkspaceRole @default(TEAM_MEMBER)
+  joinedAt    DateTime      @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  projectMembers ProjectMember[]
+  teamMembers    TeamMember[]
+
+  @@unique([userId, workspaceId])
+  @@map("workspace_members")
+}
+
+model WorkspaceInvitation {
+  id          String        @id @default(cuid())
+  email       String
+  workspaceId String
+  role        WorkspaceRole @default(TEAM_MEMBER)
+  token       String        @unique @default(cuid())
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime      @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("workspace_invitations")
+}
+
+// ─── TEAMS & CLIENTS ────────────────────────────────────────────
+
+model Team {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  createdAt   DateTime @default(now())
+
+  workspace Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  members   TeamMember[]
+
+  @@map("teams")
+}
+
+model TeamMember {
+  id        String   @id @default(cuid())
+  teamId    String
+  memberId  String
+  createdAt DateTime @default(now())
+
+  team   Team            @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  member WorkspaceMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, memberId])
+  @@map("team_members")
+}
+
+model Client {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  company     String?
+  email       String?
+  phone       String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contacts  ClientContact[]
+  proposals Proposal[]
+  projects  Project[]
+  leads     Lead[]
+
+  @@map("clients")
+}
+
+model ClientContact {
+  id       String  @id @default(cuid())
+  clientId String
+  name     String
+  email    String?
+  phone    String?
+  role     String?
+  primary  Boolean @default(false)
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("client_contacts")
+}
+
+// ─── LEADS ──────────────────────────────────────────────────────
+
+enum LeadStage {
+  PROSPECT
+  IN_DISCUSSION
+  FINAL_STEP
+  ARCHIVED
+}
+
+model Lead {
+  id          String    @id @default(cuid())
+  workspaceId String
+  clientId    String?
+  name        String
+  company     String?
+  email       String?
+  phone       String?
+  stage       LeadStage @default(PROSPECT)
+  notes       String?   @db.Text
+  position    Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client    Client?   @relation(fields: [clientId], references: [id])
+
+  @@map("leads")
+}
+
+// ─── PROPOSALS ──────────────────────────────────────────────────
+
+enum ProposalType {
+  BY_TIMELINE
+  BY_HOUR
+}
+
+enum ProposalStatus {
+  DRAFT
+  SENT
+  VIEWED
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum ByHourSubType {
+  OPEN_HOURS
+  LIMITED_HOURS
+}
+
+enum SectionType {
+  RICH_TEXT
+  TIMELINE
+  PRICING
+  PENALTY
+  SIGNATURE
+  BY_HOURS_CONFIG
+}
+
+model Proposal {
+  id           String         @id @default(cuid())
+  workspaceId  String
+  clientId     String?
+  title        String
+  type         ProposalType
+  status       ProposalStatus @default(DRAFT)
+  byHourSub    ByHourSubType?
+  hourlyRate   Float?
+  monthlyHours Int?
+  shareToken   String?        @unique
+  sentAt       DateTime?
+  viewedAt     DateTime?
+  signedAt     DateTime?
+  expiresAt    DateTime?
+  snapshotJson Json?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  workspace  Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client     Client?            @relation(fields: [clientId], references: [id])
+  sections   ProposalSection[]
+  timeline   ProposalTimelineWeek[]
+  pricing    ProposalPricingItem[]
+  signatures ProposalSignature[]
+  project    Project?
+  embeddings ProposalEmbedding[]
+
+  @@index([workspaceId, status])
+  @@map("proposals")
+}
+
+model ProposalSection {
+  id         String      @id @default(cuid())
+  proposalId String
+  title      String
+  type       SectionType @default(RICH_TEXT)
+  content    Json?
+  position   Int         @default(0)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  proposal Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+
+  @@index([proposalId, position])
+  @@map("proposal_sections")
+}
+
+model ProposalTimelineWeek {
+  id         String   @id @default(cuid())
+  proposalId String
+  weekNumber Int
+  startDate  DateTime?
+  endDate    DateTime?
+  position   Int      @default(0)
+
+  proposal Proposal               @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  tasks    ProposalTimelineTask[]
+
+  @@map("proposal_timeline_weeks")
+}
+
+model ProposalTimelineTask {
+  id            String  @id @default(cuid())
+  weekId        String
+  taskCode      String
+  title         String
+  description   String? @db.Text
+  assignedTo    String?
+  durationDays  Int     @default(1)
+  dayStart      Int     @default(1)
+  dependsOnId   String?
+  position      Int     @default(0)
+
+  week      ProposalTimelineWeek  @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  dependsOn ProposalTimelineTask? @relation("TaskDependency", fields: [dependsOnId], references: [id])
+  dependents ProposalTimelineTask[] @relation("TaskDependency")
+
+  @@map("proposal_timeline_tasks")
+}
+
+model ProposalPricingItem {
+  id          String  @id @default(cuid())
+  proposalId  String
+  description String
+  quantity    Float   @default(1)
+  unitPrice   Float
+  taxRate     Float   @default(0)
+  position    Int     @default(0)
+
+  proposal Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+
+  @@map("proposal_pricing_items")
+}
+
+model ProposalSignature {
+  id           String   @id @default(cuid())
+  proposalId   String
+  signerName   String
+  signerEmail  String
+  signerRole   String
+  signatureData String   @db.Text
+  ipAddress    String?
+  signedAt     DateTime @default(now())
+
+  proposal Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+
+  @@map("proposal_signatures")
+}
+
+// ─── PROJECTS ───────────────────────────────────────────────────
+
+enum ProjectType {
+  BY_TIMELINE
+  BY_HOUR
+}
+
+enum ProjectStatus {
+  PENDING_PAYMENT
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+model Project {
+  id             String        @id @default(cuid())
+  workspaceId    String
+  proposalId     String?       @unique
+  clientId       String?
+  name           String
+  type           ProjectType
+  status         ProjectStatus @default(PENDING_PAYMENT)
+  byHourSub      ByHourSubType?
+  hourlyRate     Float?
+  monthlyHours   Int?
+  penaltyPerDay  Float?
+  startDate      DateTime?
+  endDate        DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  workspace      Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  proposal       Proposal?            @relation(fields: [proposalId], references: [id])
+  client         Client?              @relation(fields: [clientId], references: [id])
+  members        ProjectMember[]
+  timelineWeeks  ProjectTimelineWeek[]
+  kanbanCards    KanbanCard[]
+  changeOrders   ChangeOrder[]
+  invoices       Invoice[]
+  files          File[]
+  checklists     ProjectChecklist[]
+  requests       MaintenanceRequest[]
+  penaltyRecords PenaltyRecord[]
+  agentOverrides AgentProjectOverride[]
+  agentActions   AgentAction[]
+
+  @@index([workspaceId, status])
+  @@map("projects")
+}
+
+model ProjectMember {
+  id        String @id @default(cuid())
+  projectId String
+  memberId  String
+  role      String @default("member")
+
+  project Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  member  WorkspaceMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, memberId])
+  @@map("project_members")
+}
+
+// ─── TIMELINE & TASKS ───────────────────────────────────────────
+
+enum TaskStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  EXPIRED
+}
+
+model ProjectTimelineWeek {
+  id         String   @id @default(cuid())
+  projectId  String
+  weekNumber Int
+  startDate  DateTime
+  endDate    DateTime
+  position   Int      @default(0)
+
+  project Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks   TimelineTask[]
+
+  @@map("project_timeline_weeks")
+}
+
+model TimelineTask {
+  id             String     @id @default(cuid())
+  weekId         String
+  taskCode       String
+  title          String
+  description    String?    @db.Text
+  assignedTo     String?
+  status         TaskStatus @default(NOT_STARTED)
+  durationDays   Int        @default(1)
+  dayStart       Int        @default(1)
+  originalStart  DateTime?
+  originalEnd    DateTime?
+  currentStart   DateTime?
+  currentEnd     DateTime?
+  completedAt    DateTime?
+  dependsOnId    String?
+  position       Int        @default(0)
+
+  week       ProjectTimelineWeek @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  dependsOn  TimelineTask?       @relation("TimelineTaskDep", fields: [dependsOnId], references: [id])
+  dependents TimelineTask[]      @relation("TimelineTaskDep")
+  comments   TaskComment[]
+  mentions   TaskMention[]
+  reactions  TaskReaction[]
+  penalties  PenaltyRecord[]
+
+  @@map("timeline_tasks")
+}
+
+// ─── KANBAN ─────────────────────────────────────────────────────
+
+enum KanbanColumn {
+  BACKLOG
+  TODO
+  IN_PROGRESS
+  READY_TO_TEST
+}
+
+model KanbanCard {
+  id          String       @id @default(cuid())
+  projectId   String
+  taskId      String?
+  title       String
+  description String?      @db.Text
+  column      KanbanColumn @default(BACKLOG)
+  position    Int          @default(0)
+  assignedTo  String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, column])
+  @@map("kanban_cards")
+}
+
+// ─── TASK CHAT ──────────────────────────────────────────────────
+
+model TaskComment {
+  id        String   @id @default(cuid())
+  taskId    String
+  userId    String
+  content   Json
+  isBot     Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  task      TimelineTask  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mentions  TaskMention[]
+  reactions TaskReaction[]
+
+  @@index([taskId, createdAt])
+  @@map("task_comments")
+}
+
+model TaskMention {
+  id        String @id @default(cuid())
+  commentId String
+  taskId    String
+  userId    String
+
+  comment TaskComment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  task    TimelineTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("task_mentions")
+}
+
+model TaskReaction {
+  id        String @id @default(cuid())
+  commentId String
+  taskId    String
+  emoji     String
+
+  comment TaskComment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  task    TimelineTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@map("task_reactions")
+}
+
+// ─── FILES ──────────────────────────────────────────────────────
+
+enum FileContext {
+  PROPOSAL
+  PROJECT
+  TASK
+  CHANGE_ORDER
+  INVOICE
+  REQUEST
+}
+
+model File {
+  id          String      @id @default(cuid())
+  workspaceId String
+  projectId   String?
+  contextType FileContext
+  contextId   String
+  name        String
+  url         String
+  mimeType    String?
+  sizeBytes   Int?
+  uploadedBy  String?
+  createdAt   DateTime    @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project   Project?  @relation(fields: [projectId], references: [id])
+
+  @@index([workspaceId, contextType, contextId])
+  @@map("files")
+}
+
+// ─── CHANGE ORDERS ──────────────────────────────────────────────
+
+enum ChangeOrderStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+}
+
+model ChangeOrder {
+  id          String            @id @default(cuid())
+  projectId   String
+  title       String
+  description String?           @db.Text
+  status      ChangeOrderStatus @default(DRAFT)
+  weekTarget  Int?
+  sentAt      DateTime?
+  respondedAt DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  project Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  pricing ChangeOrderPricingItem[]
+
+  @@map("change_orders")
+}
+
+model ChangeOrderPricingItem {
+  id            String @id @default(cuid())
+  changeOrderId String
+  description   String
+  quantity      Float  @default(1)
+  unitPrice     Float
+  taxRate       Float  @default(0)
+  position      Int    @default(0)
+
+  changeOrder ChangeOrder @relation(fields: [changeOrderId], references: [id], onDelete: Cascade)
+
+  @@map("change_order_pricing_items")
+}
+
+// ─── INVOICES & PAYMENTS ────────────────────────────────────────
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum PaymentMethod {
+  STRIPE
+  BANK_TRANSFER
+  CASH
+  CHECK
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+model Invoice {
+  id          String        @id @default(cuid())
+  workspaceId String
+  projectId   String?
+  number      String
+  status      InvoiceStatus @default(DRAFT)
+  subtotal    Float         @default(0)
+  taxTotal    Float         @default(0)
+  total       Float         @default(0)
+  penaltyAdj  Float         @default(0)
+  dueDate     DateTime?
+  paidAt      DateTime?
+  shareToken  String?       @unique
+  notes       String?       @db.Text
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  workspace Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project   Project?          @relation(fields: [projectId], references: [id])
+  lineItems InvoiceLineItem[]
+  payments  Payment[]
+
+  @@index([workspaceId, status])
+  @@map("invoices")
+}
+
+model InvoiceLineItem {
+  id          String @id @default(cuid())
+  invoiceId   String
+  description String
+  quantity    Float  @default(1)
+  unitPrice   Float
+  taxRate     Float  @default(0)
+  position    Int    @default(0)
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("invoice_line_items")
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  invoiceId     String
+  amount        Float
+  method        PaymentMethod @default(STRIPE)
+  status        PaymentStatus @default(PENDING)
+  stripePaymentId String?
+  paidAt        DateTime?
+  createdAt     DateTime      @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+// ─── PENALTIES ──────────────────────────────────────────────────
+
+enum PenaltyResponsibleParty {
+  AGENCY
+  CLIENT
+}
+
+model PenaltyRecord {
+  id               String                  @id @default(cuid())
+  projectId        String
+  taskId           String?
+  responsibleParty PenaltyResponsibleParty
+  dailyRate        Float
+  daysAccrued      Int                     @default(0)
+  totalAmount      Float                   @default(0)
+  notes            String?
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+
+  project Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task    TimelineTask? @relation(fields: [taskId], references: [id])
+
+  @@map("penalty_records")
+}
+
+// ─── MAINTENANCE / BY-HOURS ─────────────────────────────────────
+
+enum RequestPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model MaintenanceRequest {
+  id          String          @id @default(cuid())
+  projectId   String
+  title       String
+  description String?         @db.Text
+  assignedTo  String?
+  priority    RequestPriority @default(MEDIUM)
+  status      TaskStatus      @default(NOT_STARTED)
+  totalHours  Float           @default(0)
+  completedAt DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  project     Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  files       MaintenanceRequestFile[]
+  links       MaintenanceRequestLink[]
+  timeRecords TimeRecord[]
+
+  @@map("maintenance_requests")
+}
+
+model MaintenanceRequestFile {
+  id        String @id @default(cuid())
+  requestId String
+  name      String
+  url       String
+  mimeType  String?
+
+  request MaintenanceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@map("maintenance_request_files")
+}
+
+model MaintenanceRequestLink {
+  id        String @id @default(cuid())
+  requestId String
+  url       String
+  label     String?
+
+  request MaintenanceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@map("maintenance_request_links")
+}
+
+model TimeRecord {
+  id        String   @id @default(cuid())
+  requestId String
+  userId    String
+  hours     Float
+  notes     String?
+  date      DateTime @default(now())
+
+  request MaintenanceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  user    User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("time_records")
+}
+
+// ─── CHECKLISTS ─────────────────────────────────────────────────
+
+model ChecklistTemplate {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  createdAt   DateTime @default(now())
+
+  workspace Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  items     ChecklistTemplateItem[]
+
+  @@map("checklist_templates")
+}
+
+model ChecklistTemplateItem {
+  id         String @id @default(cuid())
+  templateId String
+  text       String
+  position   Int    @default(0)
+
+  template ChecklistTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@map("checklist_template_items")
+}
+
+model ProjectChecklist {
+  id        String   @id @default(cuid())
+  projectId String
+  name      String
+  createdAt DateTime @default(now())
+
+  project Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  items   ChecklistItem[]
+
+  @@map("project_checklists")
+}
+
+model ChecklistItem {
+  id          String   @id @default(cuid())
+  checklistId String
+  text        String
+  isChecked   Boolean  @default(false)
+  position    Int      @default(0)
+  checkedAt   DateTime?
+
+  checklist ProjectChecklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+
+  @@map("checklist_items")
+}
+
+// ─── PERKS ──────────────────────────────────────────────────────
+
+enum PerkType {
+  AGENCY_TEAM
+  CLIENT
+}
+
+model Perk {
+  id          String   @id @default(cuid())
+  workspaceId String
+  type        PerkType
+  name        String
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+
+  workspace   Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  assignments PerkAssignment[]
+
+  @@map("perks")
+}
+
+model PerkAssignment {
+  id         String   @id @default(cuid())
+  perkId     String
+  assigneeId String
+  createdAt  DateTime @default(now())
+
+  perk Perk @relation(fields: [perkId], references: [id], onDelete: Cascade)
+
+  @@map("perk_assignments")
+}
+
+// ─── NOTIFICATIONS ──────────────────────────────────────────────
+
+enum NotificationType {
+  TASK_DUE
+  TASK_EXPIRED
+  TASK_COMPLETED
+  PROPOSAL_SENT
+  PROPOSAL_SIGNED
+  INVOICE_CREATED
+  CHANGE_ORDER_PENDING
+  CHANGE_ORDER_APPROVED
+  CHANGE_ORDER_REJECTED
+  MENTION
+  AGENT_ALERT
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  SMS
+  PUSH
+}
+
+model Notification {
+  id          String             @id @default(cuid())
+  workspaceId String
+  userId      String
+  type        NotificationType
+  channel     NotificationChannel @default(IN_APP)
+  title       String
+  body        String?
+  link        String?
+  isRead      Boolean            @default(false)
+  createdAt   DateTime           @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+// ─── INTEGRATIONS ───────────────────────────────────────────────
+
+enum IntegrationProvider {
+  STRIPE
+  SENDGRID
+  TWILIO
+  ANTHROPIC
+  OPENAI
+  GOOGLE_AI
+  QUICKBOOKS
+}
+
+model IntegrationConfig {
+  id          String              @id @default(cuid())
+  workspaceId String
+  provider    IntegrationProvider
+  apiKey      String              @db.Text
+  config      Json?
+  isActive    Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, provider])
+  @@map("integration_configs")
+}
+
+// ─── AI AGENT ───────────────────────────────────────────────────
+
+enum AgentAggressiveness {
+  OFF
+  LOW
+  MEDIUM
+  HIGH
+  AGGRESSIVE
+}
+
+enum AgentActionType {
+  REMINDER
+  ESCALATION
+  REPORT
+  PENALTY_ALERT
+  SUGGESTION
+}
+
+enum AgentActionStatus {
+  PENDING
+  APPROVED
+  EXECUTED
+  REJECTED
+  FAILED
+}
+
+model AgentConfig {
+  id              String               @id @default(cuid())
+  workspaceId     String               @unique
+  name            String               @default("QuickflowAI")
+  avatar          String?
+  aggressiveness  AgentAggressiveness  @default(MEDIUM)
+  emailEnabled    Boolean              @default(true)
+  smsEnabled      Boolean              @default(false)
+  chatEnabled     Boolean              @default(true)
+  reportDaily     Boolean              @default(false)
+  reportWeekly    Boolean              @default(true)
+  reportMonthly   Boolean              @default(true)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  workspace  Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  overrides  AgentProjectOverride[]
+
+  @@map("agent_configs")
+}
+
+model AgentProjectOverride {
+  id             String               @id @default(cuid())
+  agentConfigId  String
+  projectId      String
+  aggressiveness AgentAggressiveness?
+  emailEnabled   Boolean?
+  smsEnabled     Boolean?
+  chatEnabled    Boolean?
+
+  agentConfig AgentConfig @relation(fields: [agentConfigId], references: [id], onDelete: Cascade)
+  project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([agentConfigId, projectId])
+  @@map("agent_project_overrides")
+}
+
+model AgentAction {
+  id          String            @id @default(cuid())
+  projectId   String
+  triggeredBy String?
+  actionType  AgentActionType
+  status      AgentActionStatus @default(PENDING)
+  title       String
+  description String?           @db.Text
+  metadata    Json?
+  executedAt  DateTime?
+  createdAt   DateTime          @default(now())
+
+  project Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User?            @relation(fields: [triggeredBy], references: [id])
+  logs    AgentActionLog[]
+
+  @@index([projectId, status])
+  @@map("agent_actions")
+}
+
+model AgentActionLog {
+  id        String   @id @default(cuid())
+  actionId  String
+  message   String   @db.Text
+  createdAt DateTime @default(now())
+
+  action AgentAction @relation(fields: [actionId], references: [id], onDelete: Cascade)
+
+  @@map("agent_action_logs")
+}
+
+// ─── AI PROPOSALS ───────────────────────────────────────────────
+
+model RateCard {
+  id          String @id @default(cuid())
+  workspaceId String
+  service     String
+  rate        Float
+  unit        String @default("hour")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("rate_cards")
+}
+
+model ProposalTemplate {
+  id          String @id @default(cuid())
+  workspaceId String
+  name        String
+  sections    Json
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("proposal_templates")
+}
+
+model ProposalEmbedding {
+  id          String   @id @default(cuid())
+  proposalId  String
+  sectionId   String?
+  content     String   @db.Text
+  embedding   Float[]
+  createdAt   DateTime @default(now())
+
+  proposal Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+
+  @@map("proposal_embeddings")
+}
+
+// ─── SUPER ADMIN / PLATFORM ────────────────────────────────────
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  SUSPENDED
+}
+
+model PlatformSubscription {
+  id               String             @id @default(cuid())
+  workspaceId      String             @unique
+  status           SubscriptionStatus @default(TRIAL)
+  trialEndsAt      DateTime?
+  stripeCustomerId String?
+  stripeSubId      String?
+  currentPeriodEnd DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  payments PlatformPayment[]
+
+  @@map("platform_subscriptions")
+}
+
+model PlatformPayment {
+  id             String   @id @default(cuid())
+  subscriptionId String
+  amount         Float
+  currency       String   @default("USD")
+  stripePaymentId String?
+  paidAt         DateTime @default(now())
+
+  subscription PlatformSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@map("platform_payments")
+}
+
+model PlatformAnnouncement {
+  id        String   @id @default(cuid())
+  title     String
+  body      String   @db.Text
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@map("platform_announcements")
+}
+
+model PlatformSetting {
+  id    String @id @default(cuid())
+  key   String @unique
+  value Json
+
+  @@map("platform_settings")
+}
+
+// ─── AUDIT LOG ──────────────────────────────────────────────────
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  workspaceId String
+  userId      String?
+  action      String
+  entity      String
+  entityId    String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+  @@map("audit_logs")
+}
