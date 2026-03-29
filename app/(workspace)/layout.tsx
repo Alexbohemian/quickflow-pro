@@ -18,7 +18,7 @@ export default function WorkspaceLayout({
       <div
         className={cn(
           "transition-all duration-200",
-          isCollapsed ? "lg:pl-16" : "lg:pl-64"
+          isCollapsed ? "lg:pl-[80px]" : "lg:pl-[220px]"
         )}
       >
         <TopBar />

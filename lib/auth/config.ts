@@ -7,7 +7,7 @@ import { prisma } from "@/lib/db";
 
 export const authConfig: NextAuthConfig = {
   adapter: PrismaAdapter(prisma) as NextAuthConfig["adapter"],
-  session: { strategy: "database" },
+  session: { strategy: "jwt" },
   pages: {
     signIn: "/login",
     newUser: "/workspace-select",
@@ -49,19 +49,26 @@ export const authConfig: NextAuthConfig = {
     }),
   ],
   callbacks: {
-    async session({ session, user }) {
-      if (session.user) {
-        session.user.id = user.id;
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (session.user && token.id) {
+        session.user.id = token.id as string;
 
-        // Attach workspace info from the session record
-        const dbSession = await prisma.session.findFirst({
-          where: { userId: user.id },
-          orderBy: { expires: "desc" },
+        // Look up workspace membership
+        const membership = await prisma.workspaceMember.findFirst({
+          where: { userId: token.id as string },
+          orderBy: { joinedAt: "asc" },
+          select: { workspaceId: true },
         });
 
-        if (dbSession?.workspaceId) {
+        if (membership) {
           (session as SessionWithWorkspace).workspaceId =
-            dbSession.workspaceId;
+            membership.workspaceId;
         }
       }
       return session;

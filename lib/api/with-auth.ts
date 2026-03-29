@@ -18,6 +18,7 @@ type RouteHandler = (
 
 /**
  * Wraps an API route handler with authentication and RBAC checks.
+ * Resolves workspace from the user's first membership (or cookie override).
  */
 export function withAuth(allowedRoles: WorkspaceRole[], handler: RouteHandler) {
   return async (
@@ -27,20 +28,29 @@ export function withAuth(allowedRoles: WorkspaceRole[], handler: RouteHandler) {
     const session = await auth();
     if (!session?.user?.id) return unauthorized();
 
-    const dbSession = await prisma.session.findFirst({
-      where: { userId: session.user.id },
-      orderBy: { expires: "desc" },
-    });
+    // Get workspace from cookie or fall back to user's first membership
+    const workspaceIdFromCookie = request.cookies.get("quickflow-workspace")?.value;
 
-    if (!dbSession?.workspaceId) {
-      return unauthorized("No workspace selected");
+    let workspaceId: string | null = workspaceIdFromCookie || null;
+
+    if (!workspaceId) {
+      const membership = await prisma.workspaceMember.findFirst({
+        where: { userId: session.user.id },
+        orderBy: { joinedAt: "asc" },
+        select: { workspaceId: true },
+      });
+      workspaceId = membership?.workspaceId || null;
+    }
+
+    if (!workspaceId) {
+      return unauthorized("No workspace found. Create or join a workspace first.");
     }
 
     const membership = await prisma.workspaceMember.findUnique({
       where: {
         userId_workspaceId: {
           userId: session.user.id,
-          workspaceId: dbSession.workspaceId,
+          workspaceId,
         },
       },
     });
@@ -57,7 +67,7 @@ export function withAuth(allowedRoles: WorkspaceRole[], handler: RouteHandler) {
       request,
       {
         userId: session.user.id,
-        workspaceId: dbSession.workspaceId,
+        workspaceId,
         role: membership.role,
       },
       params

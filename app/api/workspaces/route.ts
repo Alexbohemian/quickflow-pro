@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { createWorkspaceSchema } from "@/lib/validators/auth";
@@ -47,13 +47,17 @@ export async function POST(request: NextRequest) {
     include: { members: true },
   });
 
-  // Set workspace in the user's session
-  await prisma.session.updateMany({
-    where: { userId: session.user.id },
-    data: { workspaceId: workspace.id },
+  // Set workspace cookie
+  const response = NextResponse.json(workspace, { status: 201 });
+  response.cookies.set("quickflow-workspace", workspace.id, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365,
   });
 
-  return apiSuccess(workspace, 201);
+  return response;
 }
 
 export async function GET() {

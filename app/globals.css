@@ -1,45 +1,65 @@
 @import "tailwindcss";
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap");
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
-  --primary: #2563eb;
+  --foreground: #292933;
+  --primary: #4200CE;
   --primary-foreground: #ffffff;
-  --secondary: #f1f5f9;
-  --secondary-foreground: #0f172a;
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
-  --accent: #f1f5f9;
-  --accent-foreground: #0f172a;
+  --secondary: #f7f7fa;
+  --secondary-foreground: #292933;
+  --muted: #f7f7fa;
+  --muted-foreground: #808191;
+  --accent: #eff0fd;
+  --accent-foreground: #292933;
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
-  --border: #e2e8f0;
-  --input: #e2e8f0;
-  --ring: #2563eb;
+  --border: #e4e4e4;
+  --input: #e4e4e4;
+  --ring: #4200CE;
   --radius: 0.5rem;
   --success: #22c55e;
   --warning: #f59e0b;
+
+  /* Sidebar specific */
+  --sidebar-bg: #fcfcfc;
+  --sidebar-shadow: 0px 4px 10px 0px #dddee0;
+  --sidebar-text: #4f4f4f;
+  --sidebar-text-active: #11142d;
+  --sidebar-section-label: #c2c2cc;
+  --sidebar-active-bg: #eff0fd;
+  --sidebar-avatar-bg: #b4c6f6;
+  --sidebar-btn-bg: #f7f7fa;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
-    --primary: #3b82f6;
+    --primary: #6c3ce0;
     --primary-foreground: #ffffff;
-    --secondary: #1e293b;
+    --secondary: #1e1e2d;
     --secondary-foreground: #f8fafc;
-    --muted: #1e293b;
+    --muted: #1e1e2d;
     --muted-foreground: #94a3b8;
-    --accent: #1e293b;
+    --accent: #2a2a3d;
     --accent-foreground: #f8fafc;
     --destructive: #dc2626;
     --destructive-foreground: #ffffff;
-    --border: #1e293b;
-    --input: #1e293b;
-    --ring: #3b82f6;
+    --border: #2a2a3d;
+    --input: #2a2a3d;
+    --ring: #6c3ce0;
     --success: #16a34a;
     --warning: #d97706;
+
+    --sidebar-bg: #141420;
+    --sidebar-shadow: 0px 4px 10px 0px rgba(0,0,0,0.3);
+    --sidebar-text: #a0a0b0;
+    --sidebar-text-active: #f0f0f5;
+    --sidebar-section-label: #555566;
+    --sidebar-active-bg: #2a2a3d;
+    --sidebar-avatar-bg: #5a6abf;
+    --sidebar-btn-bg: #1e1e2d;
   }
 }
 
@@ -50,5 +70,5 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: "Inter", sans-serif;
 }

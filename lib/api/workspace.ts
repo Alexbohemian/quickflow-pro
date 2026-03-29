@@ -16,28 +16,17 @@ export async function getWorkspaceContext(): Promise<WorkspaceContext | null> {
   const session = await auth();
   if (!session?.user?.id) return null;
 
-  // Get the user's active session to find workspaceId
-  const dbSession = await prisma.session.findFirst({
+  // Find user's first workspace membership as default
+  const membership = await prisma.workspaceMember.findFirst({
     where: { userId: session.user.id },
-    orderBy: { expires: "desc" },
-  });
-
-  if (!dbSession?.workspaceId) return null;
-
-  const membership = await prisma.workspaceMember.findUnique({
-    where: {
-      userId_workspaceId: {
-        userId: session.user.id,
-        workspaceId: dbSession.workspaceId,
-      },
-    },
+    orderBy: { joinedAt: "asc" },
   });
 
   if (!membership) return null;
 
   return {
     userId: session.user.id,
-    workspaceId: dbSession.workspaceId,
+    workspaceId: membership.workspaceId,
     role: membership.role,
   };
 }

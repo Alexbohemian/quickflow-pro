@@ -1,6 +1,7 @@
+import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { apiSuccess, unauthorized, forbidden } from "@/lib/api/response";
+import { unauthorized, forbidden } from "@/lib/api/response";
 
 export async function POST(
   _request: Request,
@@ -23,11 +24,15 @@ export async function POST(
 
   if (!membership) return forbidden("Not a member of this workspace");
 
-  // Update session with selected workspace
-  await prisma.session.updateMany({
-    where: { userId: session.user.id },
-    data: { workspaceId },
+  // Set workspace cookie
+  const response = NextResponse.json({ workspaceId });
+  response.cookies.set("quickflow-workspace", workspaceId, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365, // 1 year
   });
 
-  return apiSuccess({ workspaceId });
+  return response;
 }
